@@ -49,6 +49,7 @@ enum rgb_underglow_effect {
     UNDERGLOW_EFFECT_BREATHE,
     UNDERGLOW_EFFECT_SPECTRUM,
     UNDERGLOW_EFFECT_SWIRL,
+    UNDERGLOW_EFFECT_DOUBLE_BIRD,//一石二鸟
     UNDERGLOW_EFFECT_NUMBER // Used to track number of underglow effects
 };
 
@@ -175,6 +176,27 @@ static void zmk_rgb_underglow_effect_swirl(void) {
     state.animation_step = state.animation_step % HUE_MAX;
 }
 
+static void zmk_rgb_underglow_effect_double_bird(void) {
+    // 清空灯带
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        pixels[i] = (struct led_rgb){r : 0, g : 0, b : 0};
+    }
+
+    // 计算两个光点的位置
+    int bird1_pos = state.animation_step % STRIP_NUM_PIXELS;
+    int bird2_pos = (state.animation_step + STRIP_NUM_PIXELS / 2) % STRIP_NUM_PIXELS;
+
+    // 设置光点颜色
+    struct zmk_led_hsb bird1_color = {.h = state.color.h, .s = SAT_MAX, .b = BRT_MAX};
+    struct zmk_led_hsb bird2_color = {.h = (state.color.h + 180) % HUE_MAX, .s = SAT_MAX, .b = BRT_MAX};
+
+    pixels[bird1_pos] = hsb_to_rgb(hsb_scale_min_max(bird1_color));
+    pixels[bird2_pos] = hsb_to_rgb(hsb_scale_min_max(bird2_color));
+
+    // 更新动画步进
+    state.animation_step += state.animation_speed;
+    state.animation_step = state.animation_step % STRIP_NUM_PIXELS;
+}
 static void zmk_rgb_underglow_tick(struct k_work *work) {
     switch (state.current_effect) {
     case UNDERGLOW_EFFECT_SOLID:
@@ -188,6 +210,9 @@ static void zmk_rgb_underglow_tick(struct k_work *work) {
         break;
     case UNDERGLOW_EFFECT_SWIRL:
         zmk_rgb_underglow_effect_swirl();
+        break;
+    case UNDERGLOW_EFFECT_DOUBLE_BIRD:  // 新增：一石二鸟灯效
+        zmk_rgb_underglow_effect_double_bird();
         break;
     }
 
