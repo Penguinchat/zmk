@@ -13,7 +13,7 @@
 #include <dt-bindings/zmk/rgb.h>
 #include <zmk/rgb_underglow.h>
 #include <zmk/keymap.h>
-#include <zmk/rgb_underglow.c>
+#include <zmk/src/rgb_underglow.c>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
