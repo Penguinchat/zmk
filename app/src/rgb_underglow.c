@@ -249,6 +249,8 @@ static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
     }
     return -ENOTSUP;
 }
+ZMK_LISTENER(rgb_underglow_key, rgb_underglow_key_event_listener);
+ZMK_SUBSCRIPTION(rgb_underglow_key, zmk_keycode_state_changed);
 static void zmk_rgb_underglow_tick(struct k_work *work) {
     switch (state.current_effect) {
     case UNDERGLOW_EFFECT_SOLID:
