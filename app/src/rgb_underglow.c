@@ -217,14 +217,23 @@ static void zmk_rgb_underglow_effect_rainbow(void) {
     state.animation_step = state.animation_step % HUE_MAX;
 }
 static void zmk_rgb_underglow_effect_blink(void) {
+    // 判断当前是否处于闪烁的“亮”阶段
     bool is_on = (state.animation_step / 10) % 2 == 0;
+
+    // 每次闪烁后改变颜色（通过改变色调值）
+    if (is_on) {
+        state.color.h = (state.color.h + 30) % HUE_MAX; // 每次闪烁后色调增加30，实现颜色变化
+    }
+
+    // 设置灯带颜色
     struct zmk_led_hsb hsb = state.color;
-    hsb.b = is_on ? BRT_MAX : 0;
+    hsb.b = is_on ? BRT_MAX : 0; // 如果是“亮”阶段，亮度为最大值；否则为0
 
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
         pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
     }
 
+    // 更新动画步进
     state.animation_step += state.animation_speed;
 }
 static void zmk_rgb_underglow_effect_meteor(void) {
@@ -236,14 +245,22 @@ static void zmk_rgb_underglow_effect_meteor(void) {
     // 流星头部位置
     int head_pos = state.animation_step % STRIP_NUM_PIXELS;
 
-    // 设置流星头部颜色
-    struct zmk_led_hsb head_color = {.h = state.color.h, .s = SAT_MAX, .b = BRT_MAX};
+    // 设置流星头部颜色（彩虹色）
+    struct zmk_led_hsb head_color = {
+        .h = (state.animation_step * 10) % HUE_MAX, // 色调随时间变化
+        .s = SAT_MAX,
+        .b = BRT_MAX
+    };
     pixels[head_pos] = hsb_to_rgb(hsb_scale_min_max(head_color));
 
     // 设置流星尾部颜色（逐渐变暗）
     for (int i = 1; i <= 5; i++) {
         int tail_pos = (head_pos - i + STRIP_NUM_PIXELS) % STRIP_NUM_PIXELS;
-        struct zmk_led_hsb tail_color = {.h = state.color.h, .s = SAT_MAX, .b = BRT_MAX - i * 20};
+        struct zmk_led_hsb tail_color = {
+            .h = head_color.h,
+            .s = SAT_MAX,
+            .b = BRT_MAX - i * 20
+        };
         pixels[tail_pos] = hsb_to_rgb(hsb_scale_min_max(tail_color));
     }
 
