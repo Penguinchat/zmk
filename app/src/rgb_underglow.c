@@ -238,14 +238,21 @@ static void zmk_rgb_underglow_effect_trigger_ripple(void) {
         state.animation_step = 0;
     }
 }
-static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
-                                     struct zmk_behavior_binding_event event) {
-    switch (binding->param1) {
-    case RGB_TRIGGER_RIPPLE_CMD:  // 新增：触发一触即发灯效
-        state.current_effect = UNDERGLOW_EFFECT_TRIGGER_RIPPLE;
-        state.animation_step = 0;  // 重置动画步进
+static int rgb_underglow_key_event_listener(const zmk_event_t *eh) {
+    if (as_zmk_keycode_state_changed(eh)) {
+        const struct zmk_keycode_state_changed *ev = as_zmk_keycode_state_changed(eh);
+        int key_index = ev->keycode - ZMK_KEYCODE_BASE;  // 假设按键索引与灯带像素索引对应
+
+        if (ev->state) {
+            // 按键按下，触发灯效
+            state.current_effect = UNDERGLOW_EFFECT_TRIGGER_RIPPLE;
+            state.animation_step = 0;  // 重置动画步进
+        } else {
+            // 按键释放，恢复默认灯效
+            state.current_effect = UNDERGLOW_EFFECT_SOLID;
+        }
+
         return 0;
-    // 其他命令...
     }
     return -ENOTSUP;
 }
