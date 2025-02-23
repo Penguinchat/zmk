@@ -27,6 +27,7 @@
 #include <zmk/workqueue.h>
 #include <zmk/event_manager.h> 
 #include <zmk/events/keycode_state_changed.h> 
+#include <zmk/keymap.h> 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #if !DT_HAS_CHOSEN(zmk_underglow)
