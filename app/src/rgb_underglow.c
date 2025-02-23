@@ -238,6 +238,17 @@ static void zmk_rgb_underglow_effect_trigger_ripple(void) {
         state.animation_step = 0;
     }
 }
+static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
+                                     struct zmk_behavior_binding_event event) {
+    switch (binding->param1) {
+    case RGB_TRIGGER_RIPPLE_CMD:  // 新增：触发一触即发灯效
+        state.current_effect = UNDERGLOW_EFFECT_TRIGGER_RIPPLE;
+        state.animation_step = 0;  // 重置动画步进
+        return 0;
+    // 其他命令...
+    }
+    return -ENOTSUP;
+}
 static void zmk_rgb_underglow_tick(struct k_work *work) {
     switch (state.current_effect) {
     case UNDERGLOW_EFFECT_SOLID:
