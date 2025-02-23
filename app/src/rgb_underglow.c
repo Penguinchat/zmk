@@ -30,7 +30,7 @@
 #ifndef ZMK_KEYCODE_BASE
 #define ZMK_KEYCODE_BASE 0
 #endif
-#endif
+
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #if !DT_HAS_CHOSEN(zmk_underglow)
