@@ -50,6 +50,7 @@ enum rgb_underglow_effect {
     UNDERGLOW_EFFECT_SPECTRUM,
     UNDERGLOW_EFFECT_SWIRL,
     UNDERGLOW_EFFECT_DOUBLE_BIRD,//一石二鸟
+    UNDERGLOW_EFFECT_TRIGGER_RIPPLE,//一触即发
     UNDERGLOW_EFFECT_NUMBER // Used to track number of underglow effects
 };
 
@@ -197,6 +198,46 @@ static void zmk_rgb_underglow_effect_double_bird(void) {
     state.animation_step += state.animation_speed;
     state.animation_step = state.animation_step % STRIP_NUM_PIXELS;
 }
+static void zmk_rgb_underglow_effect_trigger_ripple(void) {
+    // 清空灯带
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        pixels[i] = (struct led_rgb){r : 0, g : 0, b : 0};
+    }
+
+    // 触发点位置（假设为灯带中点）
+    int trigger_pos = STRIP_NUM_PIXELS / 2;
+
+    // 计算光效扩散范围
+    int ripple_radius = state.animation_step;
+
+    // 向两侧扩散光效
+    for (int i = 0; i < ripple_radius; i++) {
+        if (trigger_pos + i < STRIP_NUM_PIXELS) {
+            struct zmk_led_hsb hsb = {
+                .h = state.color.h,
+                .s = SAT_MAX,
+                .b = BRT_MAX * (1.0 - (float)i / ripple_radius)  // 亮度衰减
+            };
+            pixels[trigger_pos + i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+        }
+        if (trigger_pos - i >= 0) {
+            struct zmk_led_hsb hsb = {
+                .h = state.color.h,
+                .s = SAT_MAX,
+                .b = BRT_MAX * (1.0 - (float)i / ripple_radius)  // 亮度衰减
+            };
+            pixels[trigger_pos - i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+        }
+    }
+
+    // 更新动画步进
+    state.animation_step += state.animation_speed;
+
+    // 重置动画步进
+    if (state.animation_step > STRIP_NUM_PIXELS / 2) {
+        state.animation_step = 0;
+    }
+}
 static void zmk_rgb_underglow_tick(struct k_work *work) {
     switch (state.current_effect) {
     case UNDERGLOW_EFFECT_SOLID:
@@ -213,6 +254,9 @@ static void zmk_rgb_underglow_tick(struct k_work *work) {
         break;
     case UNDERGLOW_EFFECT_DOUBLE_BIRD:  // 新增：一石二鸟灯效
         zmk_rgb_underglow_effect_double_bird();
+        break;
+    case UNDERGLOW_EFFECT_TRIGGER_RIPPLE:  // 新增：一触即发灯效
+        zmk_rgb_underglow_effect_trigger_ripple();
         break;
     }
 
