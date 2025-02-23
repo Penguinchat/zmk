@@ -30,6 +30,7 @@
 #ifndef ZMK_KEYCODE_BASE
 #define ZMK_KEYCODE_BASE 0
 #endif
+#endif
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #if !DT_HAS_CHOSEN(zmk_underglow)
@@ -54,7 +55,7 @@ enum rgb_underglow_effect {
     UNDERGLOW_EFFECT_SPECTRUM,
     UNDERGLOW_EFFECT_SWIRL,
     UNDERGLOW_EFFECT_DOUBLE_BIRD,//一石二鸟
-    UNDERGLOW_EFFECT_TRIGGER_RIPPLE,//一触即发
+    UNDERGLOW_EFFECT_RANDOM_PRESS,
     UNDERGLOW_EFFECT_NUMBER // Used to track number of underglow effects
 };
 
@@ -202,44 +203,19 @@ static void zmk_rgb_underglow_effect_double_bird(void) {
     state.animation_step += state.animation_speed;
     state.animation_step = state.animation_step % STRIP_NUM_PIXELS;
 }
-static void zmk_rgb_underglow_effect_trigger_ripple(void) {
-    // 清空灯带
+static bool key_states[STRIP_NUM_PIXELS] = {false};  // 记录每个按键的按下状态
+static struct zmk_led_hsb key_colors[STRIP_NUM_PIXELS];  // 记录每个按键的颜色
+static void zmk_rgb_underglow_effect_random_press(void) {
+    // 默认全暗
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
         pixels[i] = (struct led_rgb){r : 0, g : 0, b : 0};
     }
 
-    // 触发点位置（假设为灯带中点）
-    int trigger_pos = STRIP_NUM_PIXELS / 2;
-
-    // 计算光效扩散范围
-    int ripple_radius = state.animation_step;
-
-    // 向两侧扩散光效
-    for (int i = 0; i < ripple_radius; i++) {
-        if (trigger_pos + i < STRIP_NUM_PIXELS) {
-            struct zmk_led_hsb hsb = {
-                .h = state.color.h,
-                .s = SAT_MAX,
-                .b = BRT_MAX * (1.0 - (float)i / ripple_radius)  // 亮度衰减
-            };
-            pixels[trigger_pos + i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+    // 如果有按键按下，对应的灯亮起随机颜色
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        if (key_states[i]) {
+            pixels[i] = hsb_to_rgb(hsb_scale_min_max(key_colors[i]));
         }
-        if (trigger_pos - i >= 0) {
-            struct zmk_led_hsb hsb = {
-                .h = state.color.h,
-                .s = SAT_MAX,
-                .b = BRT_MAX * (1.0 - (float)i / ripple_radius)  // 亮度衰减
-            };
-            pixels[trigger_pos - i] = hsb_to_rgb(hsb_scale_min_max(hsb));
-        }
-    }
-
-    // 更新动画步进
-    state.animation_step += state.animation_speed;
-
-    // 重置动画步进
-    if (state.animation_step > STRIP_NUM_PIXELS / 2) {
-        state.animation_step = 0;
     }
 }
 static int rgb_underglow_key_event_listener(const zmk_event_t *eh) {
@@ -248,18 +224,23 @@ static int rgb_underglow_key_event_listener(const zmk_event_t *eh) {
         int key_index = ev->keycode - ZMK_KEYCODE_BASE;  // 假设按键索引与灯带像素索引对应
 
         if (ev->state) {
-            // 按键按下，触发灯效
-            state.current_effect = UNDERGLOW_EFFECT_TRIGGER_RIPPLE;
-            state.animation_step = 0;  // 重置动画步进
+            // 按键按下，生成随机颜色
+            key_states[key_index] = true;
+            key_colors[key_index] = (struct zmk_led_hsb){
+                .h = rand() % HUE_MAX,  // 随机色调
+                .s = SAT_MAX,           // 最大饱和度
+                .b = BRT_MAX            // 最大亮度
+            };
         } else {
-            // 按键释放，恢复默认灯效
-            state.current_effect = UNDERGLOW_EFFECT_SOLID;
+            // 按键释放，灯暗下
+            key_states[key_index] = false;
         }
 
         return 0;
     }
     return -ENOTSUP;
 }
+
 ZMK_LISTENER(rgb_underglow_key, rgb_underglow_key_event_listener);
 ZMK_SUBSCRIPTION(rgb_underglow_key, zmk_keycode_state_changed);
 static void zmk_rgb_underglow_tick(struct k_work *work) {
@@ -279,8 +260,8 @@ static void zmk_rgb_underglow_tick(struct k_work *work) {
     case UNDERGLOW_EFFECT_DOUBLE_BIRD:  // 新增：一石二鸟灯效
         zmk_rgb_underglow_effect_double_bird();
         break;
-    case UNDERGLOW_EFFECT_TRIGGER_RIPPLE:  // 新增：一触即发灯效
-        zmk_rgb_underglow_effect_trigger_ripple();
+    case UNDERGLOW_EFFECT_RANDOM_PRESS:  // 新增：按键随机颜色灯效
+        zmk_rgb_underglow_effect_random_press();
         break;
     }
 
