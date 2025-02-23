@@ -244,6 +244,10 @@ static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
         return zmk_rgb_underglow_set_hsb((struct zmk_led_hsb){.h = (binding->param2 >> 16) & 0xFFFF,
                                                               .s = (binding->param2 >> 8) & 0xFF,
                                                               .b = binding->param2 & 0xFF});
+    case RGB_TRIGGER_RIPPLE_CMD:
+        state.current_effect = UNDERGLOW_EFFECT_TRIGGER_RIPPLE;
+        state.animation_step = 0;  // 重置动画步进
+        return 0;
     }
 
     return -ENOTSUP;
