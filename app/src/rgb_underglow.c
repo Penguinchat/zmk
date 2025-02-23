@@ -25,11 +25,7 @@
 #include <zmk/events/activity_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/workqueue.h>
-#include <zmk/event_manager.h> 
-#include <zmk/events/keycode_state_changed.h> 
-#ifndef ZMK_KEYCODE_BASE
-#define ZMK_KEYCODE_BASE 0
-#endif
+
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -55,7 +51,11 @@ enum rgb_underglow_effect {
     UNDERGLOW_EFFECT_SPECTRUM,
     UNDERGLOW_EFFECT_SWIRL,
     UNDERGLOW_EFFECT_DOUBLE_BIRD,//一石二鸟
-    UNDERGLOW_EFFECT_RANDOM_PRESS,
+    UNDERGLOW_EFFECT_RAINBOW,//彩虹灯效
+    UNDERGLOW_EFFECT_BLINK,//闪烁灯效
+    UNDERGLOW_EFFECT_METEOR,//流星灯效
+    UNDERGLOW_EFFECT_HEARTBEAT,//心跳灯效
+    UNDERGLOW_EFFECT_WAVE,//波浪灯效
     UNDERGLOW_EFFECT_NUMBER // Used to track number of underglow effects
 };
 
@@ -203,46 +203,80 @@ static void zmk_rgb_underglow_effect_double_bird(void) {
     state.animation_step += state.animation_speed;
     state.animation_step = state.animation_step % STRIP_NUM_PIXELS;
 }
-static bool key_states[STRIP_NUM_PIXELS] = {false};  // 记录每个按键的按下状态
-static struct zmk_led_hsb key_colors[STRIP_NUM_PIXELS];  // 记录每个按键的颜色
-static void zmk_rgb_underglow_effect_random_press(void) {
-    // 默认全暗
+static void zmk_rgb_underglow_effect_rainbow(void) {
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        struct zmk_led_hsb hsb = {
+            .h = (state.animation_step + (i * HUE_MAX / STRIP_NUM_PIXELS)) % HUE_MAX,
+            .s = SAT_MAX,
+            .b = BRT_MAX
+        };
+        pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+    }
+
+    state.animation_step += state.animation_speed;
+    state.animation_step = state.animation_step % HUE_MAX;
+}
+static void zmk_rgb_underglow_effect_blink(void) {
+    bool is_on = (state.animation_step / 10) % 2 == 0;
+    struct zmk_led_hsb hsb = state.color;
+    hsb.b = is_on ? BRT_MAX : 0;
+
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+    }
+
+    state.animation_step += state.animation_speed;
+}
+static void zmk_rgb_underglow_effect_meteor(void) {
+    // 清空灯带
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
         pixels[i] = (struct led_rgb){r : 0, g : 0, b : 0};
     }
 
-    // 如果有按键按下，对应的灯亮起随机颜色
+    // 流星头部位置
+    int head_pos = state.animation_step % STRIP_NUM_PIXELS;
+
+    // 设置流星头部颜色
+    struct zmk_led_hsb head_color = {.h = state.color.h, .s = SAT_MAX, .b = BRT_MAX};
+    pixels[head_pos] = hsb_to_rgb(hsb_scale_min_max(head_color));
+
+    // 设置流星尾部颜色（逐渐变暗）
+    for (int i = 1; i <= 5; i++) {
+        int tail_pos = (head_pos - i + STRIP_NUM_PIXELS) % STRIP_NUM_PIXELS;
+        struct zmk_led_hsb tail_color = {.h = state.color.h, .s = SAT_MAX, .b = BRT_MAX - i * 20};
+        pixels[tail_pos] = hsb_to_rgb(hsb_scale_min_max(tail_color));
+    }
+
+    // 更新动画步进
+    state.animation_step += state.animation_speed;
+    state.animation_step = state.animation_step % STRIP_NUM_PIXELS;
+}
+static void zmk_rgb_underglow_effect_heartbeat(void) {
+    bool is_on = (state.animation_step / 10) % 4 == 0 || (state.animation_step / 10) % 4 == 1;
+    struct zmk_led_hsb hsb = state.color;
+    hsb.b = is_on ? BRT_MAX : 0;
+
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
-        if (key_states[i]) {
-            pixels[i] = hsb_to_rgb(hsb_scale_min_max(key_colors[i]));
-        }
+        pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
     }
+
+    state.animation_step += state.animation_speed;
 }
-static int rgb_underglow_key_event_listener(const zmk_event_t *eh) {
-    if (as_zmk_keycode_state_changed(eh)) {
-        const struct zmk_keycode_state_changed *ev = as_zmk_keycode_state_changed(eh);
-        int key_index = ev->keycode - ZMK_KEYCODE_BASE;  // 假设按键索引与灯带像素索引对应
-
-        if (ev->state) {
-            // 按键按下，生成随机颜色
-            key_states[key_index] = true;
-            key_colors[key_index] = (struct zmk_led_hsb){
-                .h = rand() % HUE_MAX,  // 随机色调
-                .s = SAT_MAX,           // 最大饱和度
-                .b = BRT_MAX            // 最大亮度
-            };
-        } else {
-            // 按键释放，灯暗下
-            key_states[key_index] = false;
-        }
-
-        return 0;
+static void zmk_rgb_underglow_effect_wave(void) {
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        struct zmk_led_hsb hsb = {
+            .h = (state.animation_step + (i * HUE_MAX / STRIP_NUM_PIXELS)) % HUE_MAX,
+            .s = SAT_MAX,
+            .b = BRT_MAX
+        };
+        pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
     }
-    return -ENOTSUP;
+
+    state.animation_step += state.animation_speed;
+    state.animation_step = state.animation_step % HUE_MAX;
 }
 
-ZMK_LISTENER(rgb_underglow_key, rgb_underglow_key_event_listener);
-ZMK_SUBSCRIPTION(rgb_underglow_key, zmk_keycode_state_changed);
+
 static void zmk_rgb_underglow_tick(struct k_work *work) {
     switch (state.current_effect) {
     case UNDERGLOW_EFFECT_SOLID:
@@ -260,8 +294,20 @@ static void zmk_rgb_underglow_tick(struct k_work *work) {
     case UNDERGLOW_EFFECT_DOUBLE_BIRD:  // 新增：一石二鸟灯效
         zmk_rgb_underglow_effect_double_bird();
         break;
-    case UNDERGLOW_EFFECT_RANDOM_PRESS:  // 新增：按键随机颜色灯效
-        zmk_rgb_underglow_effect_random_press();
+    case UNDERGLOW_EFFECT_RAINBOW:  // 新增：彩虹灯效
+        zmk_rgb_underglow_effect_rainbow();
+        break;
+    case UNDERGLOW_EFFECT_BLINK:  //新增：闪烁灯效
+        zmk_rgb_underglow_effect_blink();
+        break;
+    case UNDERGLOW_EFFECT_METEOR: // 新增：流星灯效
+        zmk_rgb_underglow_effect_meteor();
+        break;
+    case UNDERGLOW_EFFECT_HEARTBEAT: // 新增：心跳灯效
+        zmk_rgb_underglow_effect_heartbeat();
+        break;
+    case UNDERGLOW_EFFECT_WAVE: // 新增：波浪灯效
+        zmk_rgb_underglow_effect_wave();
         break;
     }
 
