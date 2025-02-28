@@ -266,16 +266,17 @@ static int zmk_rgb_underglow_init(void) {
             return -EINVAL;
         }
 
-        for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
-            physical_mapping[i] = DT_PROP_BY_IDX(REMAPPING_NODE, zmk_remapping, i);
-            if (physical_mapping[i] >= STRIP_NUM_PIXELS) {
-                LOG_ERR("Invalid remap index %d at position %d",
-                        physical_mapping[i], i);
+       for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+            uint8_t idx = DT_PROP_BY_IDX(REMAPPING_NODE, zmk_remapping, i);
+            if (idx >= STRIP_NUM_PIXELS) {
+                LOG_ERR("Invalid remap index %d at position %d (max %d)",
+                        idx, i, STRIP_NUM_PIXELS-1);
                 return -EINVAL;
             }
+            physical_mapping[i] = idx;
         }
+        LOG_DBG("Applied LED remapping table");
     } else {
-        // 默认顺序映射
         for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
             physical_mapping[i] = i;
         }
