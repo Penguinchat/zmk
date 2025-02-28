@@ -40,7 +40,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define HUE_MAX 360
 #define SAT_MAX 100
 #define BRT_MAX 100
-
+#define REMAPPING_NODE DT_CHOSEN(zmk_underglow)
 BUILD_ASSERT(CONFIG_ZMK_RGB_UNDERGLOW_BRT_MIN <= CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX,
              "ERROR: RGB underglow maximum brightness is less than minimum brightness");
 
@@ -132,7 +132,8 @@ static struct led_rgb hsb_to_rgb(struct zmk_led_hsb hsb) {
 
 static void zmk_rgb_underglow_effect_solid(void) {
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
-        pixels[i] = hsb_to_rgb(hsb_scale_min_max(state.color));
+        struct led_rgb color = hsb_to_rgb(hsb_scale_min_max(state.color));
+        pixels[physical_mapping[i]] = color;
     }
 }
 
@@ -151,30 +152,34 @@ static void zmk_rgb_underglow_effect_breathe(void) {
     }
 }
 
+/* Spectrum效果修改 */
 static void zmk_rgb_underglow_effect_spectrum(void) {
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
         struct zmk_led_hsb hsb = state.color;
-        hsb.h = state.animation_step;
-
-        pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+        hsb.h = state.animation_step;  // 所有灯珠统一色相
+        
+        // 将颜色写入物理映射位置
+        pixels[physical_mapping[i]] = hsb_to_rgb(hsb_scale_min_max(hsb));
     }
 
     state.animation_step += state.animation_speed;
-    state.animation_step = state.animation_step % HUE_MAX;
+    state.animation_step %= HUE_MAX;
 }
 
+/* Swirl效果修改 */
 static void zmk_rgb_underglow_effect_swirl(void) {
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
         struct zmk_led_hsb hsb = state.color;
+        // 保持原有逻辑计算模式，但通过物理映射调整实际位置
         hsb.h = (HUE_MAX / STRIP_NUM_PIXELS * i + state.animation_step) % HUE_MAX;
-
-        pixels[i] = hsb_to_rgb(hsb_scale_min_max(hsb));
+        
+        // 将颜色写入物理映射位置
+        pixels[physical_mapping[i]] = hsb_to_rgb(hsb_scale_min_max(hsb));
     }
 
     state.animation_step += state.animation_speed * 2;
-    state.animation_step = state.animation_step % HUE_MAX;
+    state.animation_step %= HUE_MAX;
 }
-
 static void zmk_rgb_underglow_tick(struct k_work *work) {
     switch (state.current_effect) {
     case UNDERGLOW_EFFECT_SOLID:
@@ -252,6 +257,30 @@ static int zmk_rgb_underglow_init(void) {
         return -ENODEV;
     }
 #endif
+
+    if (DT_NODE_HAS_PROP(REMAPPING_NODE, zmk_remapping)) {
+        size_t remap_len = DT_PROP_LEN(REMAPPING_NODE, zmk_remapping);
+        if (remap_len != STRIP_NUM_PIXELS) {
+            LOG_ERR("Remapping length %d doesn't match LED count %d",
+                    remap_len, STRIP_NUM_PIXELS);
+            return -EINVAL;
+        }
+
+        for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+            physical_mapping[i] = DT_PROP_BY_IDX(REMAPPING_NODE, zmk_remapping, i);
+            if (physical_mapping[i] >= STRIP_NUM_PIXELS) {
+                LOG_ERR("Invalid remap index %d at position %d",
+                        physical_mapping[i], i);
+                return -EINVAL;
+            }
+        }
+    } else {
+        // 默认顺序映射
+        for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+            physical_mapping[i] = i;
+        }
+    }
+  
 
     state = (struct rgb_underglow_state){
         color : {
